@@ -337,7 +337,7 @@ restapp.post(restURI, function(req,res) {
     // First, send over WebSockets
     var server = _.find(servers, { 'demozone': payload.demozone });
     if (server) {
-      var namespace = req.params.eventname.toLowerCase();
+      var namespace = req.params.eventname;
       log.verbose("","[WS] Sending event to %s (%s, %d)", namespace, payload.demozone, server.port);
       server.io.sockets.emit(namespace, req.body);
     } else {
