@@ -95,7 +95,7 @@ module.exports = {
     "cozmo.action": { presence: true },
     "cozmo.parameters": { presence: false },
     "cozmo.result": { presence: true },
-    "cozmo.timestamp": { presence: true, datetime: true }
+    "cozmo.timestamp": { presence: true }
   },
   CHECKOUT: {
     demozone: { presence: true },
