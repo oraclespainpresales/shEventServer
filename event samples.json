@@ -17,11 +17,6 @@ BOOKING:
 	  "surname": "Casares",
 	  "age": 18,
     "points": 999
-	},
-	"checkin": {
-	  "timestamp": "2017-07-14T18:30:28.870Z",
-	  "gender": "MALE",
-	  "mood": "HAPPY"
 	}
 }
 
@@ -41,11 +36,6 @@ PRECHECKINREQUEST:
 	  "name": "Carlos",
 	  "surname": "Casares",
 	  "age": 18
-	},
-	"checkin": {
-	  "timestamp": "2017-07-14T18:30:28.870Z",
-	  "gender": "MALE",
-	  "mood": "HAPPY"
 	}
 }
 

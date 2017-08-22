@@ -20,6 +20,7 @@ var restify = require('restify')
 // Instantiate classes & servers
 const wsURI        = '/socket.io'
     , restURI      = '/wh/event/:eventname'
+    , sensorURI    = '/wh/sensor'
     , CONNECTED    = "CONNECTED"
     , DISCONNECTED = "DISCONNECTED"
 ;
@@ -328,6 +329,7 @@ restapp.post(restURI, function(req,res) {
       res.status(405).end();
       return;
     }
+    log.verbose("","Incoming request for event %s: %j", req.params.eventname, payload);
     var assert = validate(payload, event.schema);
     if (assert) {
       res.status(405).end(assert);
@@ -397,3 +399,8 @@ restapp.post(restURI, function(req,res) {
     res.status(204).end();
   }
 });
+
+restapp.post(sensorURI, function(req,res) {
+  res.status(200).end();
+  console.log(req.body);
+}
