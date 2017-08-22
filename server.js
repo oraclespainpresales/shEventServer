@@ -403,5 +403,5 @@ restapp.post(restURI, function(req,res) {
 
 restapp.post(sensorURI, function(req,res) {
   res.status(200).end();
-  console.log(req.body);
+  console.log(util.inspect(req.body, true, null));
 });
