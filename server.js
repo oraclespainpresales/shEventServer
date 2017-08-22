@@ -307,6 +307,7 @@ async.series([
       // Start REST server
       restserver.listen(RESTPORT, function() {
         log.info("","REST server running on http://localhost:" + RESTPORT + restURI);
+        log.info("","REST server running on http://localhost:" + RESTPORT + sensorURI);
         log.verbose("", "Available events:%s", _.reduce(EVENTS, (str, e) => {
           return str + " " + e.event;
         }, ""));
