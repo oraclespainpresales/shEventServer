@@ -228,7 +228,7 @@ function startKafka(cb) {
   });
   kafkaProducer = new Producer(kafkaClient);
   kafkaConsumer = new Consumer(kafkaClient,[ { topic: options.kafkaoutboundtopic } ] );
-  kafkaProducer.on('ready', function () {
+  kafkaProducer.on('ready', () => {
     log.info("", "[Kafka] Producer ready");
     if (inboundQueue.length > 0) {
       // Sent pending messages
@@ -258,7 +258,7 @@ function startKafka(cb) {
     log.error("", "Error initializing KAFKA producer: " + err.message);
   });
   kafkaConsumer.on('ready', () => {
-    log.info("", "[Kafka] Producer ready");
+    log.info("", "[Kafka] Consumer ready");
   });
   kafkaConsumer.on('message', (message) => {
     log.verbose("", "[Kafka] Message received: " + message);
