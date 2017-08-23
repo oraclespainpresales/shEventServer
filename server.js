@@ -172,6 +172,8 @@ const pingInterval = options.pinginterval || 25000
     , pingTimeout  = options.pingtimeout  || 60000
     , RESTPORT = 20000
     , URI = '/ords/pdb1/smarthospitality/demozone/zone'
+    , SHOWERURN = 'urn:com:oracle:iot:device:shower_unit:attributes'
+    , NOISEURN  = 'urn:com:oracle:iot:device:noise_sensor:attributes'
 ;
 
 // REST engine initial setup
@@ -403,5 +405,54 @@ restapp.post(restURI, function(req,res) {
 
 restapp.post(sensorURI, function(req,res) {
   res.status(200).end();
-  console.log(util.inspect(req.body, true, null));
+  // Sanity checks
+  if ( !res.body) {
+    return;
+  }
+  if (Array.isArray(res.body)) {
+    _.forEach(res.body, (e) => {
+      if (e.payload && e.payload.format && e.payload.data) {
+        // Everything seems ok
+        var csvSchema = _.cloneDeep(Schemas.KAFKAFORMAT.json);
+        csvSchema.demozone = e.payload.data.demo_zone;
+        csvSchema.timestamp = new Date();
+        if (e.payload.format === SHOWERURN) {
+          csvSchema.type = 2;
+          csvSchema.shower.roomID = e.payload.data.hotel_room;
+          csvSchema.shower.timestamp = new Date();
+          csvSchema.shower.flow = e.payload.data.water_flow;
+          csvSchema.shower.temp = e.payload.data.water_temp;
+        } else if (e.payload.format === NOISEURN) {
+          csvSchema.type = 3;
+          csvSchema.noise.roomID = e.payload.data.hotel_room;
+          csvSchema.noise.temp = e.payload.data.water_temp;
+          csvSchema.noise.decibel = e.payload.data.noise;
+        } else {
+          return;
+        }
+        var csv = json2csv({ data: csvSchema, fields: Schemas.KAFKAFORMAT.csv, hasCSVColumnTitle: false, quotes: '' });
+        log.verbose("","[Kafka] CSV payload: %s", csv);
+        if (kafkaCnxStatus !== CONNECTED || !kafkaProducer) {
+          // Zookeeper connection lost, let's try to reconnect before giving up
+          log.verbose("","[Kafka] Server not available. Enqueueing message");
+          queue.push(csv);
+          log.verbose("","[Kafka] Trying to reconnect to Kafka server...");
+          stopKafka(() => {
+            log.verbose("","[Kafka] Kafka Object closed");
+            startKafka();
+          });
+        } else {
+          kafkaProducer.send([{ topic: options.kafkatopic, messages: csv, partition: 0 }], (err, data) => {
+            if (err) {
+              log.error("", err);
+              log.verbose("","[Kafka] Server not available. Enqueueing message");
+              queue.push(csv);
+            } else {
+              log.verbose("", "[Kafka] Message sent to topic %s, partition %s and id %d", Object.keys(data)[0], Object.keys(Object.keys(data)[0])[0], data[Object.keys(data)[0]][Object.keys(Object.keys(data)[0])[0]]);
+            }
+          });
+        }
+      }
+    });
+  }
 });
