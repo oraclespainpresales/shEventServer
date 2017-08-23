@@ -295,7 +295,7 @@ async.series([
     },
     function(next) {
       // Initialize QUEUE system
-      outboundQueue = queue(queueConcurrency, function(message, done) {
+      outboundQueue = QUEUE(queueConcurrency, function(message, done) {
         log.verbose("", "Message %s dequeued");
         var payload = { mood: -1 };
         var URI = util.format(INSERTMOODURI, "MADRID", "123");
