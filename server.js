@@ -210,10 +210,8 @@ var inboundQueue  = []
 ;
 // Initializing QUEUE variables END
 
-// Initializing QUEUE variables END
-
 function startKafka(cb) {
-  kafkaClient = new kafka.Client(options.zookeeperhost, "xx", {sessionTimeout: 1000});
+  kafkaClient = new kafka.Client(options.zookeeperhost, "WEDO", {sessionTimeout: 1000});
   kafkaClient.zk.client.on('connected', () => {
     kafkaCnxStatus = CONNECTED;
     log.verbose("", "[Kafka] Server connected!");
