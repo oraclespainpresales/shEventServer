@@ -10,6 +10,7 @@ var restify = require('restify')
   , async = require('async')
   , validate = require("validate.js")
   , _ = require('lodash')
+  , QUEUE = require('block-queue')
   , log = require('npmlog-ts')
   , commandLineArgs = require('command-line-args')
   , getUsage = require('command-line-usage')
@@ -27,8 +28,10 @@ const wsURI        = '/socket.io'
 var restapp        = express()
   , restserver     = http.createServer(restapp)
   , Producer       = kafka.Producer
+  , Consumer       = kafka.Consumer
   , kafkaClient    = _.noop()
   , kafkaProducer  = _.noop()
+  , kafkaConsumer  = _.noop()
   , kafkaCnxStatus = DISCONNECTED;
 ;
 
@@ -82,10 +85,11 @@ process.on('SIGINT', function() {
 // Initialize input arguments
 const optionDefinitions = [
   { name: 'dbhost', alias: 'd', type: String },
-  { name: 'pinginterval', alias: 'i', type: Number },
+  { name: 'pinginterval', alias: 'n', type: Number },
   { name: 'pingtimeout', alias: 't', type: Number },
   { name: 'zookeeperhost', alias: 'z', type: String },
-  { name: 'kafkatopic', alias: 'k', type: String },
+  { name: 'kafkainboundtopic', alias: 'i', type: String },
+  { name: 'kafkaoutboundtopic', alias: 'o', type: String },
   { name: 'help', alias: 'h', type: Boolean },
   { name: 'verbose', alias: 'v', type: Boolean, defaultOption: false }
 ];
@@ -108,7 +112,7 @@ const sections = [
       {
         name: 'pinginterval',
         typeLabel: '[underline]{milliseconds}',
-        alias: 'i',
+        alias: 'n',
         type: Number,
         description: 'Ping interval in milliseconds for WS event clients'
       },
@@ -123,15 +127,22 @@ const sections = [
         name: 'zookeeperhost',
         typeLabel: '[underline]{ipaddress:port}',
         alias: 'z',
-        type: Number,
+        type: String,
         description: 'Zookeeper address for Kafka messaging'
       },
       {
-        name: 'kafkatopic',
+        name: 'kafkainboundtopic',
         typeLabel: '[underline]{topic}',
-        alias: 'k',
-        type: Number,
+        alias: 'i',
+        type: String,
         description: 'Kafka topic to send the events to'
+      },
+      {
+        name: 'kafkaoutboundtopic',
+        typeLabel: '[underline]{topic}',
+        alias: 'o',
+        type: String,
+        description: 'Kafka topic to receive the events from'
       },
       {
         name: 'verbose',
@@ -156,7 +167,7 @@ try {
   process.exit(-1);
 }
 
-if (!options.dbhost || !options.zookeeperhost || !options.kafkatopic) {
+if (!options.dbhost || !options.zookeeperhost || !options.kafkainboundtopic || !options.kafkaoutboundtopic) {
   console.log(getUsage(sections));
   process.exit(-1);
 }
@@ -171,9 +182,10 @@ log.level = (options.verbose) ? 'verbose' : 'info';
 const pingInterval = options.pinginterval || 25000
     , pingTimeout  = options.pingtimeout  || 60000
     , RESTPORT = 20000
-    , URI = '/ords/pdb1/smarthospitality/demozone/zone'
-    , SHOWERURN = 'urn:com:oracle:iot:device:shower_unit:attributes'
-    , NOISEURN  = 'urn:com:oracle:iot:device:noise_sensor:attributes'
+    , DEMOZONESURI  = '/ords/pdb1/smarthospitality/demozone/zone'
+    , INSERTMOODURI = '/ords/pdb1/smarthospitality/mood/%s/%s'
+    , SHOWERURN     = 'urn:com:oracle:iot:device:shower_unit:attributes'
+    , NOISEURN      = 'urn:com:oracle:iot:device:noise_sensor:attributes'
 ;
 
 // REST engine initial setup
@@ -192,7 +204,12 @@ var demozones = _.noop();
 var servers = [];
 
 // Initializing QUEUE variables BEGIN
-var queue = [];
+var inboundQueue  = []
+  , outboundQueue = _.noop()
+  , queueConcurrency = 1
+;
+// Initializing QUEUE variables END
+
 // Initializing QUEUE variables END
 
 function startKafka(cb) {
@@ -210,14 +227,15 @@ function startKafka(cb) {
     log.verbose("", "[Kafka] Server disconnected!");
   });
   kafkaProducer = new Producer(kafkaClient);
+  kafkaConsumer = new Consumer(kafkaClient,[ { topic: options.kafkaoutboundtopic } ] );
   kafkaProducer.on('ready', function () {
     log.info("", "[Kafka] Producer ready");
-    if (queue.length > 0) {
+    if (inboundQueue.length > 0) {
       // Sent pending messages
-      log.info("", "[Kafka] Sending %d pending messages...", queue.length);
+      log.info("", "[Kafka] Sending %d pending messages...", inboundQueue.length);
 
-      async.reject(queue, (msg, callback) => {
-        kafkaProducer.send([{ topic: options.kafkatopic, messages: msg, partition: 0 }], (err, data) => {
+      async.reject(inboundQueue, (msg, callback) => {
+        kafkaProducer.send([{ topic: options.kafkainboundtopic, messages: msg, partition: 0 }], (err, data) => {
           if (err) {
             log.error("", err);
             // Abort resending
@@ -236,8 +254,15 @@ function startKafka(cb) {
       });
     }
   });
-  kafkaProducer.on('error', function (err) {
+  kafkaProducer.on('error', (err) => {
     log.error("", "Error initializing KAFKA producer: " + err.message);
+  });
+  kafkaConsumer.on('ready', () => {
+    log.info("", "[Kafka] Producer ready");
+  });
+  kafkaConsumer.on('message', (message) => {
+    log.verbose("", "[Kafka] Message received: " + message);
+    outboundQueue.push(message);
   });
   if (typeof(cb) == 'function') cb(null);
 }
@@ -256,7 +281,7 @@ async.series([
     function(next) {
       // Get all demozones
       log.verbose("", "Getting available demozones...");
-      client.get(URI, function(err, req, res, obj) {
+      client.get(DEMOZONESURI, function(err, req, res, obj) {
         var jBody = JSON.parse(res.body);
         if (err) {
           next(err.message);
@@ -266,6 +291,20 @@ async.series([
           demozones = jBody.items;
           next(null);
         }
+      });
+    },
+    function(next) {
+      // Initialize QUEUE system
+      outboundQueue = queue(queueConcurrency, function(message, done) {
+        log.verbose("", "Message %s dequeued");
+        var payload = { mood: -1 };
+        var URI = util.format(INSERTMOODURI, "MADRID", "123");
+        client.post(URI, payload, function(err, req, res, obj) {
+          if (err) {
+            log.verbose("", err.message);
+          }
+          done(); // Let queue handle next task
+        });
       });
     },
     function(next) {
@@ -350,7 +389,7 @@ restapp.post(restURI, function(req,res) {
     }
     // Second, publish it to Kafka topic
     if (event.kafka) {
-      log.verbose("","[Kafka] Sending %s event to %s", eventName, options.kafkatopic);
+      log.verbose("","[Kafka] Sending %s event to %s", eventName, options.kafkainboundtopic);
       var csvSchema = _.cloneDeep(Schemas.KAFKAFORMAT.json);
       csvSchema.demozone = payload.demozone;
       csvSchema.timestamp = new Date();
@@ -381,18 +420,18 @@ restapp.post(restURI, function(req,res) {
       if (kafkaCnxStatus !== CONNECTED || !kafkaProducer) {
         // Zookeeper connection lost, let's try to reconnect before giving up
         log.verbose("","[Kafka] Server not available. Enqueueing message");
-        queue.push(csv);
+        inboundQueue.push(csv);
         log.verbose("","[Kafka] Trying to reconnect to Kafka server...");
         stopKafka(() => {
           log.verbose("","[Kafka] Kafka Object closed");
           startKafka();
         });
       } else {
-        kafkaProducer.send([{ topic: options.kafkatopic, messages: csv, partition: 0 }], (err, data) => {
+        kafkaProducer.send([{ topic: options.kafkainboundtopic, messages: csv, partition: 0 }], (err, data) => {
           if (err) {
             log.error("", err);
             log.verbose("","[Kafka] Server not available. Enqueueing message");
-            queue.push(csv);
+            inboundQueue.push(csv);
           } else {
             log.verbose("", "[Kafka] Message sent to topic %s, partition %s and id %d", Object.keys(data)[0], Object.keys(Object.keys(data)[0])[0], data[Object.keys(data)[0]][Object.keys(Object.keys(data)[0])[0]]);
           }
@@ -435,18 +474,18 @@ restapp.post(sensorURI, function(req,res) {
         if (kafkaCnxStatus !== CONNECTED || !kafkaProducer) {
           // Zookeeper connection lost, let's try to reconnect before giving up
           log.verbose("","[Kafka] Server not available. Enqueueing message");
-          queue.push(csv);
+          inboundQueue.push(csv);
           log.verbose("","[Kafka] Trying to reconnect to Kafka server...");
           stopKafka(() => {
             log.verbose("","[Kafka] Kafka Object closed");
             startKafka();
           });
         } else {
-          kafkaProducer.send([{ topic: options.kafkatopic, messages: csv, partition: 0 }], (err, data) => {
+          kafkaProducer.send([{ topic: options.kafkainboundtopic, messages: csv, partition: 0 }], (err, data) => {
             if (err) {
               log.error("", err);
               log.verbose("","[Kafka] Server not available. Enqueueing message");
-              queue.push(csv);
+              inboundQueue.push(csv);
             } else {
               log.verbose("", "[Kafka] Message sent to topic %s, partition %s and id %d", Object.keys(data)[0], Object.keys(Object.keys(data)[0])[0], data[Object.keys(data)[0]][Object.keys(Object.keys(data)[0])[0]]);
             }
