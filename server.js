@@ -306,6 +306,7 @@ async.series([
           done(); // Let queue handle next task
         });
       });
+      next(null);
     },
     function(next) {
       // Open a WS server for each demozone's baseport
