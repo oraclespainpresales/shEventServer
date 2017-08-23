@@ -406,11 +406,11 @@ restapp.post(restURI, function(req,res) {
 restapp.post(sensorURI, function(req,res) {
   res.status(200).end();
   // Sanity checks
-  if ( !res.body) {
+  if ( !req.body) {
     return;
   }
-  if (Array.isArray(res.body)) {
-    _.forEach(res.body, (e) => {
+  if (Array.isArray(req.body)) {
+    _.forEach(req.body, (e) => {
       if (e.payload && e.payload.format && e.payload.data) {
         // Everything seems ok
         var csvSchema = _.cloneDeep(Schemas.KAFKAFORMAT.json);
