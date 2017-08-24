@@ -315,7 +315,7 @@ async.series([
         var aData = message.value.split(",");
         if (aData.length != 6) {
           // Data error
-          log.error("", "Error in data value: %s", message.value);
+          log.error("", "Error in data value: %s (%d)", message.value, aData.length);
           return;
         }
         var data = {
