@@ -116,7 +116,7 @@ module.exports = {
   SURVEY: {
 
   },
-  KAFKAFORMAT: {
+  KAFKAINBOUNDFORMAT: {
     csv:  ['customer.customerID','booking.bookingID','timestamp','type','demozone','booking.roomID','checkin.timestamp','checkin.mood','checkin.gender','checkin.temperature','shower.roomID','shower.timestamp','shower.flow','shower.temp','temp.roomID','temp.timestamp','noise.roomID','noise.timestamp','noise.decibel','checkout.roomID','checkout.timestamp','checkout.mood','extension.roomID','extension.timestamp','extension.data1','extension.data2','extension.data3','extension.data4','extension.data5'],
     json: {
       demozone: '',
@@ -164,6 +164,19 @@ module.exports = {
       	data4: '',
       	data5: ''
       }
+    }
+  }
+
+  KAFKAOUTBOUNDFORMAT: {
+    csv:  ['customerID','bookingID','timestamp','type','demozone','roomID','mood'],
+    json: {
+      customerID: '',
+      bookingID: 0,
+      timestamp: '',
+      type: 0,
+      demozone: '',
+      roomID: 0,
+      mood: 0
     }
   }
 

@@ -225,7 +225,12 @@ function startKafka(cb) {
     log.verbose("", "[Kafka] Server disconnected!");
   });
   kafkaProducer = new Producer(kafkaClient);
-  kafkaConsumer = new Consumer(kafkaClient,[ { topic: options.kafkaoutboundtopic } ] );
+  kafkaConsumer = new Consumer(kafkaClient,
+    [
+      { topic: options.kafkaoutboundtopic, partition: 0 },
+      { topic: options.kafkaoutboundtopic, partition: 1 }
+    ]
+  );
   kafkaProducer.on('ready', () => {
     log.info("", "[Kafka] Producer ready");
     if (inboundQueue.length > 0) {
@@ -294,9 +299,39 @@ async.series([
     function(next) {
       // Initialize QUEUE system
       outboundQueue = QUEUE(queueConcurrency, function(message, done) {
-        log.verbose("", "Message %s dequeued");
-        var payload = { mood: -1 };
-        var URI = util.format(INSERTMOODURI, "MADRID", "123");
+        /**
+        { topic: 'gse00011668-wedo-out',
+          value: '3862079b,328,2017-08-24T07:13:22.377Z,1,MADRID,101,7',
+          offset: 14,
+          partition: 1,
+          highWaterOffset: 15,
+          key: null }
+        **/
+        if (!message || !message.value) {
+          return;
+        }
+        log.verbose("", "Message dequeued: %s", message.value);
+
+        var aData = message.value.split(",");
+        if (aData.length != 6) {
+          // Data error
+          log.error("", "Error in data value: %s", message.value);
+          return;
+        }
+        var data = {
+          customerid: aData[0],
+          bookingid: Number(aData[1]),
+          timestamp: aData[2],
+          type: Number(aData[3]),
+          demozone: aData[4],
+          roomid: Number(aData[5]),
+          mood: Number(aData[6])
+        }
+
+        log.verbose("", "Data: %j", data);
+
+        var payload = { mood: data.mood };
+        var URI = util.format(INSERTMOODURI, data.demozone, String(data.bookingid));
         client.post(URI, payload, function(err, req, res, obj) {
           if (err) {
             log.verbose("", err.message);
@@ -389,7 +424,7 @@ restapp.post(restURI, function(req,res) {
     // Second, publish it to Kafka topic
     if (event.kafka) {
       log.verbose("","[Kafka] Sending %s event to %s", eventName, options.kafkainboundtopic);
-      var csvSchema = _.cloneDeep(Schemas.KAFKAFORMAT.json);
+      var csvSchema = _.cloneDeep(Schemas.KAFKAINBOUNDFORMAT.json);
       csvSchema.demozone = payload.demozone;
       csvSchema.timestamp = new Date();
       switch(event.event) {
@@ -414,7 +449,7 @@ restapp.post(restURI, function(req,res) {
           csvSchema.checkout.mood = ''; // TODO
         break;
       }
-      var csv = json2csv({ data: csvSchema, fields: Schemas.KAFKAFORMAT.csv, hasCSVColumnTitle: false, quotes: '' });
+      var csv = json2csv({ data: csvSchema, fields: Schemas.KAFKAINBOUNDFORMAT.csv, hasCSVColumnTitle: false, quotes: '' });
       log.verbose("","[Kafka] CSV payload: %s", csv);
       if (kafkaCnxStatus !== CONNECTED || !kafkaProducer) {
         // Zookeeper connection lost, let's try to reconnect before giving up
@@ -451,7 +486,7 @@ restapp.post(sensorURI, function(req,res) {
     _.forEach(req.body, (e) => {
       if (e.payload && e.payload.format && e.payload.data) {
         // Everything seems ok
-        var csvSchema = _.cloneDeep(Schemas.KAFKAFORMAT.json);
+        var csvSchema = _.cloneDeep(Schemas.KAFKAINBOUNDFORMAT.json);
         csvSchema.demozone = e.payload.data.demo_zone;
         csvSchema.timestamp = new Date();
         if (e.payload.format === SHOWERURN) {
@@ -468,7 +503,7 @@ restapp.post(sensorURI, function(req,res) {
         } else {
           return;
         }
-        var csv = json2csv({ data: csvSchema, fields: Schemas.KAFKAFORMAT.csv, hasCSVColumnTitle: false, quotes: '' });
+        var csv = json2csv({ data: csvSchema, fields: Schemas.KAFKAINBOUNDFORMAT.csv, hasCSVColumnTitle: false, quotes: '' });
         log.verbose("","[Kafka] CSV payload: %s", csv);
         if (kafkaCnxStatus !== CONNECTED || !kafkaProducer) {
           // Zookeeper connection lost, let's try to reconnect before giving up
