@@ -165,8 +165,7 @@ module.exports = {
       	data5: ''
       }
     }
-  }
-
+  },
   KAFKAOUTBOUNDFORMAT: {
     csv:  ['customerID','bookingID','timestamp','type','demozone','roomID','mood'],
     json: {
