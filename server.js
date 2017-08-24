@@ -313,7 +313,7 @@ async.series([
         log.verbose("", "Message dequeued: %s", message.value);
 
         var aData = message.value.split(",");
-        if (aData.length != 6) {
+        if (aData.length != 7) {
           // Data error
           log.error("", "Error in data value: %s (%d)", message.value, aData.length);
           return;
