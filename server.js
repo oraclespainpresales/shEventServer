@@ -419,7 +419,7 @@ restapp.post(restURI, function(req,res) {
       log.verbose("","[WS] Sending event to %s (%s, %d)", namespace, payload.demozone, server.port);
       server.io.sockets.emit(namespace, req.body);
     } else {
-      log.error("", "Request received for a demozone not registered (" + demozone + ")");
+      log.error("", "Request received for a demozone not registered (" + payload.demozone + ")");
     }
     // Second, publish it to Kafka topic
     if (event.kafka) {
