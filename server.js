@@ -498,7 +498,7 @@ restapp.post(sensorURI, function(req,res) {
         } else if (e.payload.format === NOISEURN) {
           csvSchema.type = 3;
           csvSchema.noise.roomID = e.payload.data.hotel_room;
-          csvSchema.noise.temp = e.payload.data.water_temp;
+          csvSchema.noise.timestamp = new Date();
           csvSchema.noise.decibel = e.payload.data.noise;
         } else {
           return;
