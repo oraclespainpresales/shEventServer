@@ -264,7 +264,7 @@ function startKafka(cb) {
     log.info("", "[Kafka] Consumer ready");
   });
   kafkaConsumer.on('message', (message) => {
-    log.verbose("", "[Kafka] Message received: " + message);
+    log.verbose("", "[Kafka] Message received: " + JSON.stringify(message));
     outboundQueue.push(message);
   });
   if (typeof(cb) == 'function') cb(null);
