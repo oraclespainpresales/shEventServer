@@ -18,7 +18,7 @@ var restify = require('restify')
   , uuidv4 = require('uuid/v4')
 ;
 
-// Instantiate classes & servers 
+// Instantiate classes & servers
 const restURI      = '/kafka/send/:username/:product/:qty/:price'
     , CONNECTED    = "CONNECTED"
     , DISCONNECTED = "DISCONNECTED"
